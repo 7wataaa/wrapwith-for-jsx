@@ -1,20 +1,6 @@
-import * as vscode from 'vscode';
 import { parse } from '@babel/parser';
-import { default as traverse, NodePath, Node } from '@babel/traverse';
-import type {
-  JSXElement,
-  JSXFragment,
-  ArrowFunctionExpression,
-  BlockStatement,
-  ReturnStatement,
-} from '@babel/types';
-import {
-  isJSXElement,
-  isJSXFragment,
-  isArrowFunctionExpression,
-  isBlockStatement,
-  isReturnStatement,
-} from '@babel/types';
+import { default as traverse, Node, NodePath } from '@babel/traverse';
+import * as vscode from 'vscode';
 
 const BALANCE_OUT_COMMAND = 'editor.emmet.action.balanceOut';
 const WRAP_WITH_TAG_COMMAND = 'wrapwith-for-jsx.wrapWithTag';
@@ -27,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand(WRAP_WITH_TAG_COMMAND, () => {
-      vscode.window.showInformationMessage('WRAP_WITH_TAG_COMMAND');
+      vscode.commands.executeCommand(BALANCE_OUT_COMMAND);
     })
   );
 
@@ -50,11 +36,21 @@ class TagWraper implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     range: vscode.Range
   ): vscode.CodeAction[] | null {
-    if (!this.showQuickFix(document)) {
+    if (!['typescriptreact', 'javascriptreact'].includes(document.languageId)) {
       return null;
     }
 
-    // 何も選択されていない状態と選択されている状態とで処理を分ける
+    const parseResult = this.tryParse(document.getText());
+
+    if (!parseResult) {
+      return null;
+    }
+
+    const positions = this.findAllJSXElement(parseResult);
+
+    if (!positions || positions.length === 0) {
+      return null;
+    }
 
     const wrapWithFix = new vscode.CodeAction(
       'Wrap with ...',
@@ -69,30 +65,6 @@ class TagWraper implements vscode.CodeActionProvider {
     return [wrapWithFix];
   }
 
-  private showQuickFix(document: vscode.TextDocument): boolean {
-    const isTypeScriptReact = document.languageId === 'typescriptreact';
-    const isJavaScriptReact = document.languageId === 'javascriptreact';
-
-    if (!isTypeScriptReact && !isJavaScriptReact) {
-      return false;
-    }
-
-    const parseResult = this.tryParse(document.getText());
-
-    if (!parseResult) {
-      return false;
-    }
-
-    const positions = this.findAllJSXElementPosition(
-      parseResult,
-      new SearchQue()
-    );
-
-    console.log('positions: ', positions);
-
-    return true;
-  }
-
   private tryParse(srcText: string) {
     try {
       const ast = parse(srcText, {
@@ -102,16 +74,14 @@ class TagWraper implements vscode.CodeActionProvider {
 
       return ast;
     } catch (e) {
-      console.log('=========ERROR=========');
       console.error(e);
 
       return null;
     }
   }
 
-  private findAllJSXElementPosition(
-    programAST: Node | Node[] | null | undefined,
-    que: SearchQue
+  private findAllJSXElement(
+    programAST: Node | Node[] | null | undefined
   ): { start: number; end: number }[] {
     if (programAST === null || programAST === undefined) {
       console.error('programASTが空');
@@ -119,18 +89,17 @@ class TagWraper implements vscode.CodeActionProvider {
       return [];
     }
 
+    const result: { start: number; end: number; path: NodePath }[] = [];
+
     try {
       traverse(programAST, {
         enter: (path) => {
-          if (
-            path.isJSXElement() ||
-            path.isJSXFragment() ||
-            path.isArrowFunctionExpression() ||
-            path.isBlockStatement() ||
-            path.isReturnStatement()
-            // TODO classへの対応
-          ) {
-            que.push(path);
+          if (path.isJSXElement() || path.isJSXFragment()) {
+            result.push({
+              start: path.node.start ?? -1,
+              end: path.node.end ?? -1,
+              path: path,
+            });
           }
         },
       });
@@ -138,59 +107,12 @@ class TagWraper implements vscode.CodeActionProvider {
       console.error(e);
     }
 
-    console.log('que: ', que.length());
-
-    const result: { start: number; end: number; path: NodePath }[] = [];
-
-    while (que.length() > 0) {
-      const e = que.pop();
-
-      if (e.isJSXElement() || e.isJSXFragment()) {
-        result.push({
-          start: e.node.start ?? -1,
-          end: e.node.end ?? -1,
-          path: e,
-        });
-      } else if (isArrowFunctionExpression(e)) {
-      } else if (isBlockStatement(e)) {
-      }
-    }
+    result.sort((prev, next) => {
+      const prevCharCount = prev.end - prev.start;
+      const nextCharCount = next.end - next.start;
+      return prevCharCount - nextCharCount;
+    });
 
     return result;
-  }
-}
-
-class SearchQue {
-  private data: (
-    | NodePath<JSXElement>
-    | NodePath<JSXFragment>
-    | NodePath<ArrowFunctionExpression>
-    | NodePath<BlockStatement>
-    | NodePath<ReturnStatement>
-  )[] = [];
-
-  public length() {
-    return this.data.length;
-  }
-
-  public push(
-    item:
-      | NodePath<JSXElement>
-      | NodePath<JSXFragment>
-      | NodePath<ArrowFunctionExpression>
-      | NodePath<BlockStatement>
-      | NodePath<ReturnStatement>
-  ) {
-    this.data.push(item);
-  }
-
-  public pop() {
-    const front = this.data.shift();
-
-    if (!front) {
-      throw new Error('Queueが空です');
-    }
-
-    return front;
   }
 }
