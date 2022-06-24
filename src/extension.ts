@@ -82,7 +82,7 @@ class TagWraper implements vscode.CodeActionProvider {
 
   private findAllJSXElement(
     programAST: Node | Node[] | null | undefined
-  ): { start: number; end: number }[] {
+  ): { start: number; end: number; path: NodePath }[] {
     if (programAST === null || programAST === undefined) {
       console.error('programASTが空');
 
