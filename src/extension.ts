@@ -1,12 +1,12 @@
 import { parse } from '@babel/parser';
 import { default as traverse, Node, NodePath } from '@babel/traverse';
 import * as vscode from 'vscode';
-import { isJSXElement, isJSXFragment } from '@babel/types';
-import type { JSXElement, JSXFragment } from '@babel/types';
-import { runInNewContext } from 'vm';
+import { isJSXElement, isJSXFragment, SourceLocation } from '@babel/types';
 
-const BALANCE_OUT_COMMAND = 'editor.emmet.action.balanceOut';
 const WRAP_WITH_TAG_COMMAND = 'wrapwith-for-jsx.wrapWithTag';
+
+const snippetStr = (targetJSXStr: string) =>
+  `<$1$0>\n  ${targetJSXStr}\n</$1$0>`;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(
@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (isJSXFragment(nodePath) || isJSXElement(nodePath)) {
         const editor = vscode.window.activeTextEditor;
-        console.log(nodePath);
+
         if (!editor) {
           return;
         }
@@ -30,6 +30,30 @@ export function activate(context: vscode.ExtensionContext) {
         if (!loc) {
           return;
         }
+
+        // ターゲットのJSXを削除し､(それを含める)新しいスニペットを作成･起動する
+
+        editor
+          .edit((editBuilder) => {
+            const deleteRange = new vscode.Range(
+              new vscode.Position(loc.start.line - 1, loc.start.column),
+              new vscode.Position(loc.end.line - 1, loc.end.column)
+            );
+
+            editBuilder.delete(deleteRange);
+          })
+          .then(
+            () => {
+              const wrapWithTagSnippet = new vscode.SnippetString(
+                snippetStr(`${nodePath}`)
+              );
+
+              editor.insertSnippet(wrapWithTagSnippet);
+            },
+            (reason) => {
+              console.error(reason);
+            }
+          );
       }
     })
   );
@@ -177,6 +201,8 @@ class TagWraper implements vscode.CodeActionProvider {
     if (editor && editor.selection.isEmpty) {
       const cursorPosition = editor.selection.active;
 
+      // TODO 複数に渡るJSXの場合､sameColumnでは対応できないので修正する
+      // 囲む対象のJSXを指定する
       const targetJSX =
         positions.find((e) => {
           const sameLine =
