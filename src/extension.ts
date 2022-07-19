@@ -1,19 +1,60 @@
 import { parse } from '@babel/parser';
 import { default as traverse, Node, NodePath } from '@babel/traverse';
 import * as vscode from 'vscode';
+import { isJSXElement, isJSXFragment, SourceLocation } from '@babel/types';
 
-const BALANCE_OUT_COMMAND = 'editor.emmet.action.balanceOut';
 const WRAP_WITH_TAG_COMMAND = 'wrapwith-for-jsx.wrapWithTag';
+
+const snippetStr = (targetJSXStr: string) =>
+  `<$1$0>\n  ${targetJSXStr}\n</$1$0>`;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(
-    'Congratulations, your extension "wrapwith-for-jsx" is now active!',
+    'Congratulations, your extension "wrapwith-for-jsx" is now active!!!',
     new Date(Date.now()).toLocaleDateString()
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand(WRAP_WITH_TAG_COMMAND, () => {
-      vscode.commands.executeCommand(BALANCE_OUT_COMMAND);
+    vscode.commands.registerCommand(WRAP_WITH_TAG_COMMAND, (...args) => {
+      const nodePath = args[0];
+
+      if (isJSXFragment(nodePath) || isJSXElement(nodePath)) {
+        const editor = vscode.window.activeTextEditor;
+
+        if (!editor) {
+          return;
+        }
+
+        const loc = (nodePath as any).node.loc;
+
+        if (!loc) {
+          return;
+        }
+
+        // ターゲットのJSXを削除し､(それを含める)新しいスニペットを作成･起動する
+
+        editor
+          .edit((editBuilder) => {
+            const deleteRange = new vscode.Range(
+              new vscode.Position(loc.start.line - 1, loc.start.column),
+              new vscode.Position(loc.end.line - 1, loc.end.column)
+            );
+
+            editBuilder.delete(deleteRange);
+          })
+          .then(
+            () => {
+              const wrapWithTagSnippet = new vscode.SnippetString(
+                snippetStr(`${nodePath}`)
+              );
+
+              editor.insertSnippet(wrapWithTagSnippet);
+            },
+            (reason) => {
+              console.error(reason);
+            }
+          );
+      }
     })
   );
 
@@ -37,6 +78,7 @@ class TagWraper implements vscode.CodeActionProvider {
     range: vscode.Range
   ): vscode.CodeAction[] | null {
     if (!['typescriptreact', 'javascriptreact'].includes(document.languageId)) {
+      console.warn(`languageId not supported. (${document.languageId})`);
       return null;
     }
 
@@ -48,7 +90,15 @@ class TagWraper implements vscode.CodeActionProvider {
 
     const positions = this.findAllJSXElement(parseResult);
 
+    console.info(positions);
+
     if (!positions || positions.length === 0) {
+      return null;
+    }
+
+    let targetJSX = this.findTargetJSX(positions);
+
+    if (!targetJSX) {
       return null;
     }
 
@@ -60,6 +110,7 @@ class TagWraper implements vscode.CodeActionProvider {
     wrapWithFix.command = {
       title: 'WRAP_WITH_TAG_COMMAND',
       command: WRAP_WITH_TAG_COMMAND,
+      arguments: [targetJSX],
     };
 
     return [wrapWithFix];
@@ -82,22 +133,44 @@ class TagWraper implements vscode.CodeActionProvider {
 
   private findAllJSXElement(
     programAST: Node | Node[] | null | undefined
-  ): { start: number; end: number; path: NodePath }[] {
+  ): { start: vscode.Position; end: vscode.Position; path: NodePath }[] {
     if (programAST === null || programAST === undefined) {
       console.error('programASTが空');
 
       return [];
     }
 
-    const result: { start: number; end: number; path: NodePath }[] = [];
+    const result: {
+      start: vscode.Position;
+      end: vscode.Position;
+      path: NodePath;
+    }[] = [];
 
     try {
       traverse(programAST, {
         enter: (path) => {
-          if (path.isJSXElement() || path.isJSXFragment()) {
+          if (path.isJSXElement()) {
             result.push({
-              start: path.node.start ?? -1,
-              end: path.node.end ?? -1,
+              start: new vscode.Position(
+                path.node.loc?.start.line ?? -1,
+                path.node.loc?.start.column ?? -1
+              ),
+              end: new vscode.Position(
+                path.node.loc?.end.line ?? -1,
+                path.node.loc?.end.column ?? -1
+              ),
+              path: path,
+            });
+          } else if (path.isJSXFragment()) {
+            result.push({
+              start: new vscode.Position(
+                path.node.loc?.start.line ?? -1,
+                path.node.loc?.start.column ?? -1
+              ),
+              end: new vscode.Position(
+                path.node.loc?.end.line ?? -1,
+                path.node.loc?.end.column ?? -1
+              ),
               path: path,
             });
           }
@@ -108,11 +181,49 @@ class TagWraper implements vscode.CodeActionProvider {
     }
 
     result.sort((prev, next) => {
-      const prevCharCount = prev.end - prev.start;
-      const nextCharCount = next.end - next.start;
+      const prevCharCount = prev.end.character - prev.start.character;
+      const nextCharCount = next.end.character - next.start.character;
       return prevCharCount - nextCharCount;
     });
 
     return result;
+  }
+
+  private findTargetJSX(
+    positions: {
+      start: vscode.Position;
+      end: vscode.Position;
+      path: NodePath;
+    }[]
+  ) {
+    const editor = vscode.window.activeTextEditor;
+
+    if (editor && editor.selection.isEmpty) {
+      const cursorPosition = editor.selection.active;
+
+      // TODO 複数に渡るJSXの場合､sameColumnでは対応できないので修正する
+      // 囲む対象のJSXを指定する
+      const targetJSX =
+        positions.find((e) => {
+          const sameLine =
+            e.start.line <= cursorPosition.line + 1 &&
+            cursorPosition.line + 1 <= e.end.line;
+
+          const sameColumn =
+            e.start.character <= cursorPosition.character &&
+            cursorPosition.character <= e.end.character;
+
+          return sameLine && sameColumn;
+        })?.path ?? null;
+
+      if (
+        targetJSX &&
+        (targetJSX.isJSXElement() || targetJSX.isJSXFragment())
+      ) {
+        return targetJSX;
+      }
+    }
+
+    return null;
   }
 }
