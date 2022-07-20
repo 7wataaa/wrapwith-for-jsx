@@ -31,7 +31,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         // ターゲットのJSXを削除し､(それを含める)新しいスニペットを作成･起動する
-
         editor
           .edit(
             (editBuilder) => {
@@ -69,12 +68,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
       ['javascriptreact', 'typescriptreact'],
-      new TagWraper()
+      new TagWrapperCodeAction()
     )
   );
 }
 
-class TagWraper implements vscode.CodeActionProvider {
+class TagWrapperCodeAction implements vscode.CodeActionProvider {
   static alreadyActivateCheckPosition: vscode.Position;
 
   public static readonly providedCodeActionKinds = [
@@ -82,8 +81,7 @@ class TagWraper implements vscode.CodeActionProvider {
   ];
 
   public provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range
+    document: vscode.TextDocument
   ): vscode.CodeAction[] | null {
     if (!['typescriptreact', 'javascriptreact'].includes(document.languageId)) {
       console.warn(`languageId not supported. (${document.languageId})`);
@@ -102,7 +100,7 @@ class TagWraper implements vscode.CodeActionProvider {
       return null;
     }
 
-    let targetJSX = this.findTargetJSX(jsxPositions);
+    const targetJSX = this.findTargetJSX(jsxPositions);
 
     if (!targetJSX) {
       return null;
@@ -119,6 +117,7 @@ class TagWraper implements vscode.CodeActionProvider {
       arguments: [targetJSX],
     };
 
+    // コードアクションの表示
     return [wrapWithFix];
   }
 
