@@ -199,19 +199,18 @@ class TagWraper implements vscode.CodeActionProvider {
     if (editor && editor.selection.isEmpty) {
       const cursorPosition = editor.selection.active;
 
-      // TODO 複数に渡るJSXの場合､sameColumnでは対応できないので修正する
       // 囲む対象のJSXを指定する
       const targetJSX =
         positions.find((e) => {
-          const sameLine =
-            e.start.line <= cursorPosition.line + 1 &&
-            cursorPosition.line + 1 <= e.end.line;
+          const startLineValid =
+            e.start.line === cursorPosition.line + 1 &&
+            e.start.character <= cursorPosition.character;
 
-          const sameColumn =
-            e.start.character <= cursorPosition.character &&
+          const endLineValid =
+            e.end.line === cursorPosition.line + 1 &&
             cursorPosition.character <= e.end.character;
 
-          return sameLine && sameColumn;
+          return startLineValid || endLineValid;
         })?.path ?? null;
 
       if (
