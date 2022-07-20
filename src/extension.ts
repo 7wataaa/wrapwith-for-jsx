@@ -88,15 +88,13 @@ class TagWraper implements vscode.CodeActionProvider {
       return null;
     }
 
-    const positions = this.findAllJSXElement(parseResult);
+    const jsxPositions = this.findAllJSXElement(parseResult);
 
-    console.info(positions);
-
-    if (!positions || positions.length === 0) {
+    if (!jsxPositions || jsxPositions.length === 0) {
       return null;
     }
 
-    let targetJSX = this.findTargetJSX(positions);
+    let targetJSX = this.findTargetJSX(jsxPositions);
 
     if (!targetJSX) {
       return null;
