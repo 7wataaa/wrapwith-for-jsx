@@ -11,7 +11,7 @@ const snippetStr = (targetJSXStr: string) =>
 export function activate(context: vscode.ExtensionContext) {
   console.log(
     'Congratulations, your extension "wrapwith-for-jsx" is now active!!!',
-    new Date(Date.now()).toLocaleDateString()
+    `${new Date(Date.now()).getMinutes()}:${new Date(Date.now()).getSeconds()}`
   );
 
   context.subscriptions.push(
@@ -34,21 +34,30 @@ export function activate(context: vscode.ExtensionContext) {
         // ターゲットのJSXを削除し､(それを含める)新しいスニペットを作成･起動する
 
         editor
-          .edit((editBuilder) => {
-            const deleteRange = new vscode.Range(
-              new vscode.Position(loc.start.line - 1, loc.start.column),
-              new vscode.Position(loc.end.line - 1, loc.end.column)
-            );
+          .edit(
+            (editBuilder) => {
+              const deleteRange = new vscode.Range(
+                new vscode.Position(loc.start.line - 1, loc.start.column),
+                new vscode.Position(loc.end.line - 1, loc.end.column)
+              );
 
-            editBuilder.delete(deleteRange);
-          })
+              editBuilder.delete(deleteRange);
+            },
+            {
+              undoStopBefore: true,
+              undoStopAfter: false,
+            }
+          )
           .then(
             () => {
               const wrapWithTagSnippet = new vscode.SnippetString(
                 snippetStr(`${nodePath}`)
               );
 
-              editor.insertSnippet(wrapWithTagSnippet);
+              editor.insertSnippet(wrapWithTagSnippet, undefined, {
+                undoStopBefore: false,
+                undoStopAfter: true,
+              });
             },
             (reason) => {
               console.error(reason);
