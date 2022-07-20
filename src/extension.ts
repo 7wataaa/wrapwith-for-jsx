@@ -1,7 +1,7 @@
 import { parse } from '@babel/parser';
 import { default as traverse, Node, NodePath } from '@babel/traverse';
+import { isJSXElement, isJSXFragment } from '@babel/types';
 import * as vscode from 'vscode';
-import { isJSXElement, isJSXFragment, SourceLocation } from '@babel/types';
 
 const WRAP_WITH_TAG_COMMAND = 'wrapwith-for-jsx.wrapWithTag';
 
