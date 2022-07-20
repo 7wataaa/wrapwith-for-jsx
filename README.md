@@ -6,4 +6,4 @@ This extension makes the "Wrap with JSX" operation even better!
 
 ## Install
 
-To be published on Marketplace...
+If you are viewing from outside MarketPlace, please install from [the MarketPlace page](https://marketplace.visualstudio.com/items?itemName=7wataaa.wrapwith-for-jsx 'https://marketplace.visualstudio.com/items?itemName=7wataaa.wrapwith-for-jsx').
