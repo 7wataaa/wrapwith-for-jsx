@@ -3,7 +3,7 @@
   "displayName": "wrapWith for JSX",
   "description": "Extension to enclose a JSX-tag with a new JSX-tag",
   "repository": "https://github.com/7wataaa/wrapwith-for-jsx",
-  "image": "images/icon.png",
+  "icon": "images/icon.png",
   "license": "MIT",
   "publisher": "7wataaa",
   "keywords": [
@@ -11,7 +11,7 @@
     "tsx",
     "snippet"
   ],
-  "version": "1.0.3",
+  "version": "1.0.4",
   "engines": {
     "vscode": "^1.68.0"
   },
