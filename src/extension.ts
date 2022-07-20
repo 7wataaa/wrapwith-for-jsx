@@ -5,8 +5,7 @@ import { isJSXElement, isJSXFragment, SourceLocation } from '@babel/types';
 
 const WRAP_WITH_TAG_COMMAND = 'wrapwith-for-jsx.wrapWithTag';
 
-const snippetStr = (targetJSXStr: string) =>
-  `<$1$0>\n  ${targetJSXStr}\n</$1$0>`;
+const snippetStr = (targetJSXStr: string) => `<$1$0>\n  ${targetJSXStr}\n</$1>`;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(
